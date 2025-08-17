@@ -23,7 +23,7 @@ jobs:
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
           name: OrphanedResourceHunterStack # This is the name of your stack in AWS
-          template: orphaned-resource-hunter.yaml
+          template: Orphaned-Resource-Hunter.yaml
           s3-bucket: sahil-cloudformation-bucket-for-orphaned-resource-scanner # CHANGE THIS to a unique S3 bucket name
           capabilities: CAPABILITY_NAMED_IAM
           parameter-overrides: |
