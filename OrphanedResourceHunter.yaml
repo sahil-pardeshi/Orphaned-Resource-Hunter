@@ -2,6 +2,35 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Deploys the backend for the Orphaned Resource Hunter application, including a
   DynamoDB table, Lambda functions, and an API Gateway endpoint.
+  # Add this section to your OrphanedResourceHunter.yaml file at the top, after the "AWSTemplateFormatVersion" and "Description" lines.
+
+Parameters:
+  ScannerFunctionName:
+    Type: String
+    Default: OrphanedResourceScanner
+    Description: The name for the orphaned resource scanner Lambda function.
+  DeleterFunctionName:
+    Type: String
+    Default: OrphanedResourceDeleter
+    Description: The name for the orphaned resource deleter Lambda function.
+
+# You will also need to update the resources section to reference these parameters, like so:
+Resources:
+  ScannerLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Ref ScannerFunctionName
+      Handler: scanner.handler
+      # ... other properties ...
+
+  DeleterLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Ref DeleterFunctionName
+      Handler: deleter.handler
+      # ... other properties ...
+
+
 
 Resources:
   # DynamoDB Table to store the orphaned resources
