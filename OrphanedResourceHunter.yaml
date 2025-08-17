@@ -1,0 +1,350 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Deploys the backend for the Orphaned Resource Hunter application, including a
+  DynamoDB table, Lambda functions, and an API Gateway endpoint.
+
+Resources:
+  # DynamoDB Table to store the orphaned resources
+  OrphanedResourcesTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: OrphanedResources
+      AttributeDefinitions:
+        - AttributeName: ResourceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ResourceId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  # IAM Role for the Lambda Functions
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: ResourceManagementPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ec2:Describe*'
+                  - 'ec2:DeleteVolume'
+                  - 'ec2:ReleaseAddress'
+                  - 'ec2:DeleteSnapshot'
+                  - 's3:ListAllMyBuckets'
+                  - 's3:ListBucket'
+                  - 's3:DeleteBucket'
+                  - 's3:GetBucketLocation'
+                  - 'efs:DescribeFileSystems'
+                  - 'efs:DescribeMountTargets'
+                  - 'efs:DeleteFileSystem'
+                  - 'dynamodb:BatchWriteItem'
+                  - 'dynamodb:DeleteItem'
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:Scan'
+                  - 'dynamodb:GetItem'
+                  - 'sns:Publish'
+                Resource: '*'
+
+  # SNS Topic for deletion notifications
+  OrphanedResourcesSNS:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      DisplayName: 'OrphanedResourceDeletions'
+
+  # Lambda Function to scan for orphaned resources
+  OrphanedResourceScanner:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: OrphanedResourceScanner
+      Handler: index.handler
+      Runtime: python3.9
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref OrphanedResourcesSNS
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          from datetime import datetime
+          
+          # Initialize Boto3 clients
+          ec2_client = boto3.client('ec2')
+          s3_client = boto3.client('s3')
+          efs_client = boto3.client('efs')
+          dynamodb = boto3.resource('dynamodb')
+          table = dynamodb.Table(os.environ['TABLE_NAME'])
+          
+          def handler(event, context):
+              print("Starting scan for orphaned resources...")
+              resources = []
+              
+              # 1. Scan for Orphaned EBS Volumes
+              print("Scanning for EBS volumes...")
+              volumes = ec2_client.describe_volumes(Filters=[{'Name': 'status', 'Values': ['available']}])
+              for vol in volumes['Volumes']:
+                  resources.append({
+                      'ResourceId': vol['VolumeId'],
+                      'ResourceType': 'EBS Volume',
+                      'Region': vol['AvailabilityZone'][:-1],
+                      'FoundAt': str(datetime.utcnow()),
+                      'Details': json.dumps({'Size': vol['Size'], 'VolumeType': vol['VolumeType']})
+                  })
+
+              # 2. Scan for Orphaned Elastic IPs
+              print("Scanning for Elastic IPs...")
+              addresses = ec2_client.describe_addresses()
+              for addr in addresses['Addresses']:
+                  if 'InstanceId' not in addr and 'NetworkInterfaceId' not in addr:
+                      resources.append({
+                          'ResourceId': addr['AllocationId'],
+                          'ResourceType': 'Elastic IP',
+                          'Region': context.invoked_function_arn.split(':')[3],
+                          'FoundAt': str(datetime.utcnow()),
+                          'Details': json.dumps({})
+                      })
+
+              # 3. Scan for Orphaned EBS Snapshots
+              print("Scanning for EBS snapshots...")
+              snapshots = ec2_client.describe_snapshots(OwnerIds=['self'])
+              for snap in snapshots['Snapshots']:
+                  if not ec2_client.describe_images(Filters=[{'Name': 'block-device-mapping.ebs.snapshot-id', 'Values': [snap['SnapshotId']]}])['Images']:
+                    resources.append({
+                        'ResourceId': snap['SnapshotId'],
+                        'ResourceType': 'EBS Snapshot',
+                        'Region': context.invoked_function_arn.split(':')[3],
+                        'FoundAt': str(datetime.utcnow()),
+                        'Details': json.dumps({'VolumeId': snap['VolumeId'], 'Description': snap['Description']})
+                    })
+              
+              # 4. Scan for Orphaned EFS Filesystems (without mount targets)
+              print("Scanning for EFS filesystems...")
+              filesystems = efs_client.describe_file_systems()
+              for fs in filesystems['FileSystems']:
+                  mount_targets = efs_client.describe_mount_targets(FileSystemId=fs['FileSystemId'])
+                  if not mount_targets['MountTargets']:
+                      resources.append({
+                          'ResourceId': fs['FileSystemId'],
+                          'ResourceType': 'EFS Filesystem',
+                          'Region': context.invoked_function_arn.split(':')[3],
+                          'FoundAt': str(datetime.utcnow()),
+                          'Details': json.dumps({'Name': fs['Name']})
+                      })
+
+              # 5. Scan for Orphaned S3 Buckets (no objects)
+              print("Scanning for empty S3 buckets...")
+              buckets = s3_client.list_buckets()
+              for bucket in buckets['Buckets']:
+                  try:
+                      objects = s3_client.list_objects_v2(Bucket=bucket['Name'], MaxKeys=1)
+                      if objects['KeyCount'] == 0:
+                          resources.append({
+                              'ResourceId': bucket['Name'],
+                              'ResourceType': 'S3 Bucket',
+                              'Region': context.invoked_function_arn.split(':')[3],
+                              'FoundAt': str(datetime.utcnow()),
+                              'Details': json.dumps({})
+                          })
+                  except Exception as e:
+                      print(f"Skipping bucket {bucket['Name']} due to error: {e}")
+              
+              # Clear existing data and write new items to DynamoDB
+              try:
+                  scan = table.scan(ProjectionExpression='ResourceId')
+                  with table.batch_writer() as batch:
+                      for each in scan['Items']:
+                          batch.delete_item(Key={'ResourceId': each['ResourceId']})
+                  if resources:
+                      with table.batch_writer() as batch:
+                          for resource in resources:
+                              batch.put_item(Item=resource)
+                  print(f"Successfully wrote {len(resources)} resources to DynamoDB.")
+              except Exception as e:
+                  print(f"Error interacting with DynamoDB: {e}")
+              
+              # Return items from the table
+              response = table.scan()
+              items = response.get('Items', [])
+              return {
+                  'statusCode': 200,
+                  'headers': {
+                      'Access-Control-Allow-Origin': '*',
+                      'Content-Type': 'application/json'
+                  },
+                  'body': json.dumps(items)
+              }
+  
+  # Lambda Function to delete a specific resource
+  OrphanedResourceDeleter:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: OrphanedResourceDeleter
+      Handler: index.handler
+      Runtime: python3.9
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref OrphanedResourcesTable
+          SNS_TOPIC_ARN: !Ref OrphanedResourcesSNS
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          
+          ec2_client = boto3.client('ec2')
+          s3_client = boto3.client('s3')
+          efs_client = boto3.client('efs')
+          dynamodb = boto3.resource('dynamodb')
+          sns_client = boto3.client('sns')
+          
+          table = dynamodb.Table(os.environ['TABLE_NAME'])
+          
+          def handler(event, context):
+              try:
+                  body = json.loads(event['body'])
+                  resource_id = body.get('resource_id')
+                  resource_type = body.get('resource_type')
+                  sns_topic_arn = os.environ.get('SNS_TOPIC_ARN')
+          
+                  if not resource_id or not resource_type:
+                      return {'statusCode': 400, 'body': json.dumps('Missing resource_id or resource_type in request body')}
+          
+                  print(f"Received request to delete {resource_type} with ID: {resource_id}")
+          
+                  if resource_type == 'EBS Volume':
+                      ec2_client.delete_volume(VolumeId=resource_id)
+                  elif resource_type == 'Elastic IP':
+                      item = table.get_item(Key={'ResourceId': resource_id})
+                      if 'Item' in item and 'Details' in item['Item']:
+                          details = json.loads(item['Item']['Details'])
+                          allocation_id = details.get('AllocationId')
+                          if allocation_id:
+                              ec2_client.release_address(AllocationId=allocation_id)
+                          else:
+                              return {'statusCode': 400, 'body': json.dumps('AllocationId not found for Elastic IP.')}
+                      else:
+                          # Fallback to releasing by ID if details are missing, though not ideal.
+                          ec2_client.release_address(AllocationId=resource_id)
+                  elif resource_type == 'EBS Snapshot':
+                      ec2_client.delete_snapshot(SnapshotId=resource_id)
+                  elif resource_type == 'S3 Bucket':
+                      s3_client.delete_bucket(Bucket=resource_id)
+                  elif resource_type == 'EFS Filesystem':
+                      efs_client.delete_file_system(FileSystemId=resource_id)
+                  else:
+                      return {'statusCode': 400, 'body': json.dumps(f"Unsupported resource type: {resource_type}")}
+          
+                  table.delete_item(Key={'ResourceId': resource_id})
+                  
+                  if sns_topic_arn:
+                      message = f"Successfully deleted orphaned resource: {resource_type} with ID {resource_id}"
+                      sns_client.publish(TopicArn=sns_topic_arn, Message=message)
+          
+                  print(f"Successfully deleted {resource_type} with ID: {resource_id}")
+                  return {'statusCode': 200, 'body': json.dumps({'message': f"Resource {resource_id} deleted successfully."})}
+              except Exception as e:
+                  print(f"Error during deletion: {e}")
+                  return {'statusCode': 500, 'body': json.dumps({'error': str(e)})}
+  
+  # API Gateway to expose the Lambda functions
+  ApiGateway:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: 'OrphanedResourceHunterApi'
+      Description: 'API for the Orphaned Resource Hunter application'
+
+  # Scanner API Endpoint
+  ScannerResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: scanner
+      RestApiId: !Ref ApiGateway
+
+  ScannerMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: GET
+      ResourceId: !Ref ScannerResource
+      RestApiId: !Ref ApiGateway
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: 'AWS_PROXY'
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OrphanedResourceScanner.Arn}/invocations'
+
+  # Deleter API Endpoint
+  DeleterResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: delete
+      RestApiId: !Ref ApiGateway
+
+  DeleterMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      ResourceId: !Ref DeleterResource
+      RestApiId: !Ref ApiGateway
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: 'AWS_PROXY'
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OrphanedResourceDeleter.Arn}/invocations'
+      RequestModels:
+        'application/json': 'Empty'
+      RequestParameters:
+        - 'method.request.header.Content-Type': true
+  
+  # Permissions for API Gateway to invoke the Lambdas
+  ScannerPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref OrphanedResourceScanner
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+
+  DeleterPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref OrphanedResourceDeleter
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+  
+  # Deploy the API
+  ApiDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    DependsOn:
+      - ScannerMethod
+      - DeleterMethod
+    Properties:
+      RestApiId: !Ref ApiGateway
+      StageName: 'prod'
+
+Outputs:
+  ApiGatewayUrl:
+    Description: 'The API Gateway invoke URL for the application'
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod'
+  SNSTopicArn:
+    Description: 'The ARN of the SNS topic for deletion notifications'
+    Value: !Ref OrphanedResourcesSNS
