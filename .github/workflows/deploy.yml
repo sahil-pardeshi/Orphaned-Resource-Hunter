@@ -1,0 +1,31 @@
+name: Deploy to AWS CloudFormation
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1 # CHANGE THIS to your desired AWS region
+
+      - name: Deploy CloudFormation stack
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: OrphanedResourceHunterStack # This is the name of your stack in AWS
+          template: OrphanedResourceHunter.yaml
+          s3-bucket: sahil-cloudformation-bucket-for-orphaned-resource-scanner # CHANGE THIS to a unique S3 bucket name
+          capabilities: CAPABILITY_NAMED_IAM
+          parameter-overrides: |
+            ScannerFunctionName=OrphanedResourceScanner
+            DeleterFunctionName=OrphanedResourceDeleter
