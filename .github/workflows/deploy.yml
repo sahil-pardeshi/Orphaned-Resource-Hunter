@@ -24,7 +24,7 @@ jobs:
         with:
           name: OrphanedResourceHunterStack # This is the name of your stack in AWS
           template: OrphanedResourceHunter.yaml
-          s3-bucket: sahil-cloudformation-bucket-for-orphaned-resource-scanner # CHANGE THIS to a unique S3 bucket name
+          s3-bucket: orphaned-resource-scanner-bucket # CHANGE THIS to a unique S3 bucket name
           capabilities: CAPABILITY_NAMED_IAM
           parameter-overrides: |
             
