@@ -27,5 +27,4 @@ jobs:
           s3-bucket: sahil-cloudformation-bucket-for-orphaned-resource-scanner # CHANGE THIS to a unique S3 bucket name
           capabilities: CAPABILITY_NAMED_IAM
           parameter-overrides: |
-            ScannerFunctionName=OrphanedResourceScanner
-            DeleterFunctionName=OrphanedResourceDeleter
+            
