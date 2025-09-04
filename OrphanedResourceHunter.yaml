@@ -18,7 +18,7 @@ Resources:
   OrphanedResourcesTable:
     Type: 'AWS::DynamoDB::Table'
     Properties:
-      TableName: OrphanedResources
+      TableName: OrphanedResourcesV2
       AttributeDefinitions:
         - AttributeName: ResourceId
           AttributeType: S
