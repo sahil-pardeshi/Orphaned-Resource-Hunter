@@ -14,24 +14,6 @@ Parameters:
     Default: OrphanedResourceDeleter
     Description: The name for the orphaned resource deleter Lambda function.
 
-# You will also need to update the resources section to reference these parameters, like so:
-Resources:
-  ScannerLambdaFunction:
-    Type: 'AWS::Lambda::Function'
-    Properties:
-      FunctionName: !Ref ScannerFunctionName
-      Handler: scanner.handler
-      # ... other properties ...
-
-  DeleterLambdaFunction:
-    Type: 'AWS::Lambda::Function'
-    Properties:
-      FunctionName: !Ref DeleterFunctionName
-      Handler: deleter.handler
-      # ... other properties ...
-
-
-
 Resources:
   # DynamoDB Table to store the orphaned resources
   OrphanedResourcesTable:
@@ -153,13 +135,13 @@ Resources:
               snapshots = ec2_client.describe_snapshots(OwnerIds=['self'])
               for snap in snapshots['Snapshots']:
                   if not ec2_client.describe_images(Filters=[{'Name': 'block-device-mapping.ebs.snapshot-id', 'Values': [snap['SnapshotId']]}])['Images']:
-                    resources.append({
-                        'ResourceId': snap['SnapshotId'],
-                        'ResourceType': 'EBS Snapshot',
-                        'Region': context.invoked_function_arn.split(':')[3],
-                        'FoundAt': str(datetime.utcnow()),
-                        'Details': json.dumps({'VolumeId': snap['VolumeId'], 'Description': snap['Description']})
-                    })
+                      resources.append({
+                          'ResourceId': snap['SnapshotId'],
+                          'ResourceType': 'EBS Snapshot',
+                          'Region': context.invoked_function_arn.split(':')[3],
+                          'FoundAt': str(datetime.utcnow()),
+                          'Details': json.dumps({'VolumeId': snap['VolumeId'], 'Description': snap['Description']})
+                      })
               
               # 4. Scan for Orphaned EFS Filesystems (without mount targets)
               print("Scanning for EFS filesystems...")
@@ -341,7 +323,7 @@ Resources:
       RequestModels:
         'application/json': 'Empty'
       RequestParameters:
-        - 'method.request.header.Content-Type': true
+        method.request.header.Content-Type: true
   
   # Permissions for API Gateway to invoke the Lambdas
   ScannerPermission:
