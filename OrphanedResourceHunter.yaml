@@ -2,7 +2,6 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Deploys the backend for the Orphaned Resource Hunter application, including a
   DynamoDB table, Lambda functions, and an API Gateway endpoint.
-  # Add this section to your OrphanedResourceHunter.yaml file at the top, after the "AWSTemplateFormatVersion" and "Description" lines.
 
 Parameters:
   ScannerFunctionName:
@@ -86,6 +85,7 @@ Resources:
       Timeout: 60
       Environment:
         Variables:
+          TABLE_NAME: OrphanedResourcesTable
           SNS_TOPIC_ARN: !Ref OrphanedResourcesSNS
       Code:
         ZipFile: |
@@ -321,7 +321,7 @@ Resources:
         Type: 'AWS_PROXY'
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OrphanedResourceDeleter.Arn}/invocations'
       RequestModels:
-        'application/json': 'Empty'
+        application/json: Empty
       RequestParameters:
         method.request.header.Content-Type: true
   
