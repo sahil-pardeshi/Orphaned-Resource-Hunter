@@ -26,5 +26,5 @@ jobs:
           template: OrphanedResourceHunter.yaml
           s3-bucket: sahil-pardeshiorh2025 # CHANGE THIS to a unique S3 bucket name
           capabilities: CAPABILITY_NAMED_IAM
-          parameter-overrides: |
+          
             
