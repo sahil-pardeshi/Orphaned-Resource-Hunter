@@ -6,11 +6,11 @@ Description: >
 Parameters:
   ScannerFunctionName:
     Type: String
-    Default: OrphanedResourceScanner
+    Default: OrphanedResourceScannerV2  # CHANGED
     Description: The name for the orphaned resource scanner Lambda function.
   DeleterFunctionName:
     Type: String
-    Default: OrphanedResourceDeleter
+    Default: OrphanedResourceDeleterV2  # CHANGED
     Description: The name for the orphaned resource deleter Lambda function.
 
 Resources:
@@ -18,7 +18,7 @@ Resources:
   OrphanedResourcesTable:
     Type: 'AWS::DynamoDB::Table'
     Properties:
-      TableName: OrphanedResourcesV2
+      TableName: OrphanedResourcesV2  # CHANGED
       AttributeDefinitions:
         - AttributeName: ResourceId
           AttributeType: S
@@ -78,14 +78,14 @@ Resources:
   OrphanedResourceScanner:
     Type: 'AWS::Lambda::Function'
     Properties:
-      FunctionName: OrphanedResourceScanner
+      FunctionName: !Ref ScannerFunctionName # Use a Parameter reference
       Handler: index.handler
       Runtime: python3.9
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
       Environment:
         Variables:
-          TABLE_NAME: OrphanedResourcesTable
+          TABLE_NAME: !Ref OrphanedResourcesTable
           SNS_TOPIC_ARN: !Ref OrphanedResourcesSNS
       Code:
         ZipFile: |
@@ -204,7 +204,7 @@ Resources:
   OrphanedResourceDeleter:
     Type: 'AWS::Lambda::Function'
     Properties:
-      FunctionName: OrphanedResourceDeleter
+      FunctionName: !Ref DeleterFunctionName # Use a Parameter reference
       Handler: index.handler
       Runtime: python3.9
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -320,11 +320,7 @@ Resources:
         IntegrationHttpMethod: POST
         Type: 'AWS_PROXY'
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OrphanedResourceDeleter.Arn}/invocations'
-      RequestModels:
-        application/json: Empty
-      RequestParameters:
-        method.request.header.Content-Type: true
-  
+
   # Permissions for API Gateway to invoke the Lambdas
   ScannerPermission:
     Type: 'AWS::Lambda::Permission'
