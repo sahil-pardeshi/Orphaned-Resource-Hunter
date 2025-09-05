@@ -4,84 +4,366 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Orphaned Resource Hunter</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='90' font-size='90'>🔍</text></svg>">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        /* Base styles for a clean, modern look */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
+            background-color: #f8f9fa; /* Light background for a fresh feel */
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
         }
+
         .container {
-            max-width: 1024px;
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 1rem; /* Consistent padding */
         }
-        .animate-spin-slow {
-            animation: spin 3s linear infinite;
+
+        /* Header Styling */
+        header {
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            padding: 1rem 0;
         }
+
+        header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap; /* Allow wrapping on small screens */
+        }
+
+        header h1 {
+            font-size: 1.875rem; /* text-3xl */
+            font-weight: 700; /* font-bold */
+            color: #212529; /* text-gray-900 */
+            margin-bottom: 0; /* Remove default margin */
+        }
+
+        /* Main Content Area */
+        main {
+            flex-grow: 1; /* Allows main content to expand */
+            padding-top: 2rem; /* pt-8 */
+            padding-bottom: 2rem; /* pb-8 */
+        }
+
+        /* Card-like Sections */
+        .card {
+            background-color: #ffffff;
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
+            padding: 1.5rem; /* p-6 */
+            margin-bottom: 1.5rem; /* mb-6 */
+        }
+        
+        /* Form Controls (Search & Sort) */
+        .form-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem; /* space-y-4 */
+        }
+
+        .form-control-group {
+            width: 100%;
+        }
+
+        input[type="text"],
+        select {
+            width: 100%;
+            padding: 0.75rem 1rem; /* px-4 py-2 */
+            border: 1px solid #ced4da; /* border-gray-300 */
+            border-radius: 0.5rem; /* rounded-lg */
+            font-size: 1rem;
+            color: #495057; /* text-gray-700 */
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input[type="text"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #007bff; /* focus:border-blue-500 */
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); /* focus:ring-2 focus:ring-blue-500 */
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.75rem 1.5rem; /* px-6 py-3 */
+            border-radius: 0.5rem; /* rounded-lg */
+            font-weight: 600; /* font-semibold */
+            text-align: center;
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-blue {
+            background-color: #007bff; /* bg-blue-600 */
+            color: #ffffff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* shadow-md */
+        }
+
+        .btn-blue:hover {
+            background-color: #0056b3; /* hover:bg-blue-700 */
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-red {
+            background-color: #dc3545; /* bg-red-600 */
+            color: #ffffff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* shadow-md */
+        }
+
+        .btn-red:hover {
+            background-color: #c82333; /* hover:bg-red-700 */
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Resource Cards */
+        .resource-card {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding: 1.5rem;
+            border-bottom: 1px solid #e9ecef; /* Subtle separator */
+        }
+
+        .resource-card:last-child {
+            border-bottom: none;
+        }
+
+        .resource-card-info {
+            flex-grow: 1;
+        }
+
+        .resource-card h3 {
+            font-size: 1.25rem; /* text-xl */
+            font-weight: 700; /* font-bold */
+            color: #212529;
+            margin-bottom: 0.25rem;
+        }
+
+        .resource-card p {
+            font-size: 0.875rem; /* text-sm */
+            color: #6c757d; /* text-gray-600 */
+            margin-bottom: 0.25rem;
+        }
+
+        .resource-card p strong {
+            font-weight: 600; /* font-semibold */
+            color: #495057; /* Slightly darker for emphasis */
+        }
+
+        /* Status Badges */
+        .badge {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 1rem; /* px-4 py-2 */
+            border-radius: 0.5rem; /* rounded-lg */
+            font-size: 0.875rem; /* text-sm */
+            font-weight: 600; /* font-semibold */
+        }
+
+        .badge-warning {
+            background-color: #fff3cd; /* bg-yellow-100 */
+            color: #856404; /* text-yellow-800 */
+        }
+
+        /* Icons in badges */
+        .badge svg {
+            width: 1.25rem; /* w-5 */
+            height: 1.25rem; /* h-5 */
+            margin-right: 0.5rem; /* mr-2 */
+            fill: currentColor;
+        }
+
+        /* Loading Spinner */
+        .loading-spinner {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem 0; /* py-8 */
+        }
+
+        .loading-spinner svg {
+            animation: spin 1s linear infinite;
+            height: 3rem; /* h-12 */
+            width: 3rem; /* w-12 */
+            color: #007bff; /* text-blue-600 */
+            margin-bottom: 1rem; /* mb-4 */
+        }
+
+        .loading-spinner span {
+            font-size: 1.125rem; /* text-lg */
+            color: #495057; /* text-gray-600 */
+            font-weight: 500; /* font-medium */
+        }
+
         @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
+
+        /* Message Container */
+        .message-success {
+            background-color: #d4edda; /* bg-green-100 */
+            color: #155724; /* text-green-700 */
+        }
+
+        .message-error {
+            background-color: #f8d7da; /* bg-red-100 */
+            color: #721c24; /* text-red-700 */
+        }
+
+        .message-container div {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: opacity 0.3s;
+        }
+
+        /* No Resources Found */
+        .no-resources {
+            text-align: center;
+            padding: 2.5rem 0; /* py-10 */
+            color: #6c757d; /* text-gray-500 */
+            font-weight: 500;
+            font-size: 1.125rem; /* text-lg */
+        }
+
+        /* Footer */
+        footer {
+            background-color: #343a40; /* bg-gray-800 */
+            color: #f8f9fa; /* text-white */
+            text-align: center;
+            padding: 1rem 0;
+            font-size: 0.875rem;
+            margin-top: auto; /* Push footer to the bottom */
+        }
+        
+        /* Utility classes (mimicking Tailwind where necessary) */
+        .hidden { display: none; }
+        .opacity-50 { opacity: 0.5; }
+        .pointer-events-none { pointer-events: none; }
+        .mb-1 { margin-bottom: 0.25rem; }
+
+        /* Responsive Adjustments */
+        @media (min-width: 768px) {
+            header h1 {
+                font-size: 2.25rem; /* text-4xl on larger screens */
+            }
+            .form-controls {
+                flex-direction: row;
+            }
+            .form-control-group.search {
+                flex-grow: 3; /* Allocate more space to search */
+            }
+            .form-control-group.sort {
+                flex-grow: 1; /* Allocate less space to sort */
+            }
+            .resource-card {
+                flex-direction: row;
+                align-items: center;
+            }
+            .resource-card-info {
+                margin-right: 1.5rem; /* space-x-6 */
+            }
+        }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div class="container mx-auto p-4 md:p-8 bg-white rounded-lg shadow-xl">
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-3xl font-bold text-gray-800">Orphaned Resource Hunter</h1>
-            <div class="flex items-center space-x-2">
-                <button id="refresh-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:bg-blue-700 transition-colors duration-200">
-                    Refresh
-                </button>
+<body>
+    <header>
+        <div class="container">
+            <h1>Orphaned Resource Hunter</h1>
+            <button id="refresh-btn" class="btn btn-blue">
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="card">
+            <div class="form-controls">
+                <div class="form-control-group search">
+                    <label for="search-input" class="sr-only">Search Resources</label>
+                    <input type="text" id="search-input" placeholder="Search by resource ID or type...">
+                </div>
+                <div class="form-control-group sort">
+                    <label for="sort-select" class="sr-only">Sort By</label>
+                    <select id="sort-select">
+                        <option value="default">Sort by...</option>
+                        <option value="type">Resource Type</option>
+                        <option value="foundAt">Found Date</option>
+                    </select>
+                </div>
             </div>
         </div>
 
-        <div id="message-container" class="mb-4"></div>
+        <div id="message-container" class="message-container"></div>
 
-        <div id="loading-spinner" class="hidden flex justify-center items-center py-8">
-            <svg class="animate-spin -ml-1 mr-3 h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <div id="loading-spinner" class="hidden loading-spinner">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.001 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span class="text-gray-600 font-medium">Scanning for orphaned resources...</span>
+            <span>Scanning for orphaned resources...</span>
         </div>
 
         <div id="resources-container">
-            <!-- Resource cards will be injected here -->
-        </div>
+            
 
-        <div id="no-resources-found" class="hidden text-center py-10 text-gray-500 font-medium text-lg">
+</div>
+
+        <div id="no-resources-found" class="hidden no-resources">
             No orphaned resources found.
         </div>
-    </div>
+    </main>
+
+    <footer>
+        <p>Managed in Pune, Maharashtra, India. &copy; 2025 Orphaned Resource Hunter. All rights reserved.</p>
+    </footer>
 
     <script>
-        // API Gateway URLs verified to be working
         const SCANNER_URL = "https://fee8bpnpoh.execute-api.eu-north-1.amazonaws.com/prod/scanner";
         const DELETER_URL = "https://fee8bpnpoh.execute-api.eu-north-1.amazonaws.com/prod/delete";
+        let allResources = [];
 
         const refreshButton = document.getElementById('refresh-btn');
         const resourcesContainer = document.getElementById('resources-container');
         const messageContainer = document.getElementById('message-container');
         const loadingSpinner = document.getElementById('loading-spinner');
         const noResourcesMessage = document.getElementById('no-resources-found');
+        const searchInput = document.getElementById('search-input');
+        const sortSelect = document.getElementById('sort-select');
 
-        // Function to show and hide messages in a user-friendly way
         function showMessage(message, type) {
             const messageDiv = document.createElement('div');
-            messageDiv.className = `p-4 rounded-lg font-medium text-sm transition-opacity duration-300 ${
-                type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-            }`;
+            messageDiv.className = `message-container-item ${type === 'error' ? 'message-error' : 'message-success'}`;
             messageDiv.textContent = message;
             messageContainer.innerHTML = '';
             messageContainer.appendChild(messageDiv);
         }
 
-        // Main function to fetch and display resources from the API
         async function fetchResources() {
             loadingSpinner.classList.remove('hidden');
             resourcesContainer.innerHTML = '';
             noResourcesMessage.classList.add('hidden');
             messageContainer.innerHTML = '';
             refreshButton.disabled = true;
+            searchInput.disabled = true;
+            sortSelect.disabled = true;
 
             try {
                 const response = await fetch(SCANNER_URL);
@@ -89,71 +371,103 @@
                 
                 loadingSpinner.classList.add('hidden');
                 refreshButton.disabled = false;
+                searchInput.disabled = false;
+                sortSelect.disabled = false;
 
                 if (!response.ok) {
                     throw new Error(data.error || 'Failed to fetch resources.');
                 }
                 
-                // The single, correct line to access the resources array from the "items" key
-                const items = data.items || [];
+                allResources = data.items || [];
+                console.log('Orphaned Resources:', allResources);
 
-                // Log the raw data and the items array to the console for debugging
-                console.log('API Raw Data:', data);
-                console.log('Orphaned Resources:', items);
-
-                if (items.length === 0) {
-                    noResourcesMessage.classList.remove('hidden');
-                } else {
-                    items.forEach(item => {
-                        const card = createResourceCard(item);
-                        resourcesContainer.appendChild(card);
-                    });
-                }
+                renderResources(allResources);
             } catch (error) {
                 loadingSpinner.classList.add('hidden');
                 refreshButton.disabled = false;
+                searchInput.disabled = false;
+                sortSelect.disabled = false;
                 console.error('Error fetching resources:', error);
                 showMessage('Failed to fetch resources. Please check your API URL and Lambda logs.', 'error');
             }
         }
 
-        // Function to create a resource card for the UI
+        function renderResources(resources) {
+            resourcesContainer.innerHTML = '';
+            if (resources.length === 0) {
+                noResourcesMessage.classList.remove('hidden');
+            } else {
+                noResourcesMessage.classList.add('hidden');
+                resources.forEach(item => {
+                    const card = createResourceCard(item);
+                    resourcesContainer.appendChild(card);
+                });
+            }
+        }
+
+        function filterResources() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const filtered = allResources.filter(item => {
+                const id = (item.ResourceId || item.id || '').toLowerCase();
+                const type = (item.ResourceType || item.type || '').toLowerCase();
+                return id.includes(searchTerm) || type.includes(searchTerm);
+            });
+            renderResources(filtered);
+        }
+        
+        function sortResources() {
+            const sortBy = sortSelect.value;
+            let sorted = [...allResources];
+
+            if (sortBy === 'type') {
+                sorted.sort((a, b) => {
+                    const typeA = a.ResourceType || a.type || '';
+                    const typeB = b.ResourceType || b.type || '';
+                    return typeA.localeCompare(typeB);
+                });
+            } else if (sortBy === 'foundAt') {
+                sorted.sort((a, b) => {
+                    const dateA = new Date(a.FoundAt || a.timestamp || 0);
+                    const dateB = new Date(b.FoundAt || b.timestamp || 0);
+                    return dateB - dateA;
+                });
+            }
+            renderResources(sorted);
+        }
+
         function createResourceCard(item) {
-            // Using a fallback for key names to be more resilient to changes
-            const resourceId = item.ResourceId || item.id;
-            const resourceType = item.ResourceType || item.type;
-            const foundAt = new Date(item.FoundAt || item.timestamp).toLocaleString();
+            const resourceId = item.ResourceId || item.id || 'N/A';
+            const resourceType = item.ResourceType || item.type || 'Unknown Type';
+            const foundAt = item.FoundAt || item.timestamp ? new Date(item.FoundAt || item.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'N/A';
 
             const card = document.createElement('div');
             card.id = `card-${resourceId}`;
-            card.className = "bg-white p-6 rounded-lg shadow-md mb-4 flex justify-between items-center";
+            card.className = "card resource-card";
             
-            // Check if the resource is an EBS Snapshot to disable deletion
-            let buttonHtml = '';
+            let actionHtml = '';
             if (resourceType === 'EBS Snapshot') {
-                buttonHtml = `
-                    <div class="bg-yellow-100 text-yellow-800 text-sm font-medium px-4 py-2 rounded-lg flex items-center">
-                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                actionHtml = `
+                    <div class="badge badge-warning">
+                        <svg style="width:1.25rem; height:1.25rem; margin-right:0.5rem;" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
                         Attached to an AMI
                     </div>
                 `;
             } else {
-                buttonHtml = `
-                    <button class="delete-btn bg-red-500 text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:bg-red-600 transition-colors duration-200"
-                            data-id="${resourceId}" data-type="${resourceType}">
+                actionHtml = `
+                    <button class="btn btn-red delete-btn" data-id="${resourceId}" data-type="${resourceType}">
                         Delete
                     </button>
                 `;
             }
             
             card.innerHTML = `
-                <div>
-                    <h3 class="text-xl font-bold text-gray-800">${resourceType}</h3>
-                    <p class="text-sm text-gray-500">ID: ${resourceId}</p>
-                    <p class="text-xs text-gray-400">Found At: ${foundAt}</p>
+                <div class="resource-card-info">
+                    <h3>${resourceType}</h3>
+                    <p><strong>ID:</strong> ${resourceId}</p>
+                    <p><strong>Found At:</strong> ${foundAt}</p>
                 </div>
-                <div>
-                    ${buttonHtml}
+                <div class="resource-card-actions">
+                    ${actionHtml}
                 </div>
             `;
 
@@ -167,16 +481,15 @@
             return card;
         }
 
-        // Function to delete a resource via the API
         async function deleteResource(resourceId, resourceType) {
-            // Use a custom modal instead of alert()
             if (!confirm(`Are you sure you want to delete the ${resourceType} with ID: ${resourceId}?`)) {
                 return;
             }
 
             const card = document.getElementById(`card-${resourceId}`);
             if (card) {
-                card.classList.add('opacity-50', 'pointer-events-none');
+                card.style.opacity = '0.5';
+                card.style.pointerEvents = 'none';
             }
 
             try {
@@ -200,25 +513,29 @@
                 showMessage(data.message || 'Resource deleted successfully.', 'success');
                 if (card) {
                     card.remove();
-                }
-                if (resourcesContainer.children.length === 0) {
-                     noResourcesMessage.classList.remove('hidden');
+                    allResources = allResources.filter(item => item.ResourceId !== resourceId && item.id !== resourceId);
+                    // Re-render to update the display after deletion, maintaining sort/filter
+                    renderResources(allResources); 
+                    if (allResources.length === 0) {
+                        noResourcesMessage.classList.remove('hidden');
+                    }
                 }
             } catch (error) {
                 console.error('Error deleting resource:', error);
                 showMessage(`Error: ${error.message}`, 'error');
                 if (card) {
-                    card.classList.remove('opacity-50', 'pointer-events-none');
+                    card.style.opacity = '1';
+                    card.style.pointerEvents = 'auto';
                 }
             }
         }
         
-        // Event listener for the refresh button
         refreshButton.addEventListener('click', fetchResources);
+        searchInput.addEventListener('input', filterResources);
+        sortSelect.addEventListener('change', sortResources);
 
-        // Run fetchResources on page load
+        // Initial fetch when the page loads
         fetchResources();
-
     </script>
 </body>
 </html>
